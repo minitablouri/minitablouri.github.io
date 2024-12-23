@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minitablouri - the experience</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+
+        /* Welcome Screen Styles */
+        .welcome-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #00000000;
+            backdrop-filter: blur(10px); /* Apply the blur effect */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+        .welcome-screen h1 {
+            font-size: 4rem;
+            font-weight: 300;
+            color: #fff;
+            text-shadow: black 0px 0px 10px;
+            margin-bottom: 20px;
+            font-family: 'Helvetica Neue', sans-serif;
+        }
+        .welcome-screen button {
+            font-size: 1.5rem;
+            padding: 10px 20px;
+            background-color: #aaa;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .welcome-screen button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-screen" id="welcomeScreen">
+        <h1>Minitablouri</h1>
+        <button onclick="startExperience()">Start</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/PointerLockControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script>
+            init3DWalkthrough();
+        function startExperience() {
+            document.getElementById('welcomeScreen').style.opacity = 0;
+        }
+
+        function init3DWalkthrough() {
+            // Scene, Camera, and Renderer
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            camera.position.set(0, 1.65, 0);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 0.7;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Load GLB Model
+            const loader = new THREE.GLTFLoader();
+            loader.load('expozitie.glb', (gltf) => {
+                scene.add(gltf.scene);
+                console.log("Model Loaded Successfully!");
+            }, undefined, (error) => {
+                console.error('Error loading the model:', error);
+            });
+
+            // Pointer Lock Controls
+            const controls = new THREE.PointerLockControls(camera, document.body);
+            document.body.addEventListener('click', () => controls.lock());
+
+            // Movement Variables
+            const move = { forward: false, backward: false, left: false, right: false };
+            const velocity = new THREE.Vector3();
+
+            // Key Events
+            document.addEventListener('keydown', (e) => {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') move.forward = true;
+                if (e.code === 'ArrowDown' || e.code === 'KeyS') move.backward = true;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') move.left = true;
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') move.right = true;
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') move.forward = false;
+                if (e.code === 'ArrowDown' || e.code === 'KeyS') move.backward = false;
+                if (e.code === 'ArrowLeft' || e.code === 'KeyA') move.left = false;
+                if (e.code === 'ArrowRight' || e.code === 'KeyD') move.right = false;
+            });
+
+            // Animation Loop
+            const clock = new THREE.Clock();
+            function animate() {
+                const delta = clock.getDelta();
+
+                // Update velocity based on movement
+                velocity.set(0, 0, 0);
+                if (move.forward) velocity.z += 1000 * delta;
+                if (move.backward) velocity.z -= 1000 * delta;
+                if (move.left) velocity.x -= 1000 * delta;
+                if (move.right) velocity.x += 1000 * delta;
+
+                // Apply velocity
+                controls.moveRight(velocity.x * delta);
+                controls.moveForward(velocity.z * delta);
+
+                // Constrain movement to a radius of 9.5 units
+                const position = controls.getObject().position;
+                position.x = Math.max(-9.5, Math.min(9.5, position.x));
+                position.z = Math.max(-9.5, Math.min(9.5, position.z));
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(animate);
+            }
+            animate();
+        }
+    </script>
+</body>
+</html>
