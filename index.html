@@ -1,14 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minitablouri - the experience</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        canvas { display: block; }
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
 
-        /* Welcome Screen Styles */
+        canvas {
+            display: block;
+        }
+
         .welcome-screen {
             position: absolute;
             top: 0;
@@ -16,7 +22,7 @@
             width: 100%;
             height: 100%;
             background: #00000000;
-            backdrop-filter: blur(10px); /* Apply the blur effect */
+            backdrop-filter: blur(10px);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -24,6 +30,7 @@
             z-index: 10;
             transition: opacity 0.3s ease;
         }
+
         .welcome-screen h1 {
             font-size: 4rem;
             font-weight: 300;
@@ -32,6 +39,7 @@
             margin-bottom: 20px;
             font-family: 'Helvetica Neue', sans-serif;
         }
+
         .welcome-screen button {
             font-size: 1.5rem;
             padding: 10px 20px;
@@ -42,11 +50,25 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
+
         .welcome-screen button:hover {
             background-color: #0056b3;
         }
+
+        #controls {
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            backdrop-filter: blur(10px);
+        }
+
+        #controls button {
+            border: none;
+            margin: none;
+        }
     </style>
 </head>
+
 <body>
     <div class="welcome-screen" id="welcomeScreen">
         <h1>Minitablouri</h1>
@@ -57,13 +79,21 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/PointerLockControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
-            init3DWalkthrough();
+        var move = { forward: false, backward: false, left: false, right: false, shift: false };
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        init3DWalkthrough();
+
         function startExperience() {
             document.getElementById('welcomeScreen').style.opacity = 0;
         }
 
+        function isTouchDevice() {
+            return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0;
+        }
+
         function init3DWalkthrough() {
-            // Scene, Camera, and Renderer
             const scene = new THREE.Scene();
             const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             const renderer = new THREE.WebGLRenderer();
@@ -74,7 +104,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -83,7 +112,6 @@
             directionalLight.castShadow = true;
             scene.add(directionalLight);
 
-            // Load GLB Model
             const loader = new THREE.GLTFLoader();
             loader.load('expozitie.glb', (gltf) => {
                 scene.add(gltf.scene);
@@ -92,20 +120,17 @@
                 console.error('Error loading the model:', error);
             });
 
-            // Pointer Lock Controls
             const controls = new THREE.PointerLockControls(camera, document.body);
-            document.body.addEventListener('click', () => controls.lock());
+            if (!isTouchDevice()) document.body.addEventListener('click', () => controls.lock());
 
-            // Movement Variables
-            const move = { forward: false, backward: false, left: false, right: false };
             const velocity = new THREE.Vector3();
 
-            // Key Events
             document.addEventListener('keydown', (e) => {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') move.forward = true;
                 if (e.code === 'ArrowDown' || e.code === 'KeyS') move.backward = true;
                 if (e.code === 'ArrowLeft' || e.code === 'KeyA') move.left = true;
                 if (e.code === 'ArrowRight' || e.code === 'KeyD') move.right = true;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.shift = true;
             });
 
             document.addEventListener('keyup', (e) => {
@@ -113,25 +138,60 @@
                 if (e.code === 'ArrowDown' || e.code === 'KeyS') move.backward = false;
                 if (e.code === 'ArrowLeft' || e.code === 'KeyA') move.left = false;
                 if (e.code === 'ArrowRight' || e.code === 'KeyD') move.right = false;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') move.shift = false;
             });
 
-            // Animation Loop
+            // Handle touch movement
+            if (isTouchDevice()) {
+                let isTouching = false;
+
+                document.addEventListener('touchstart', (e) => {
+                    isTouching = true;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (!isTouching) return;
+                    const deltaX = e.touches[0].clientX - touchStartX;
+                    const deltaY = e.touches[0].clientY - touchStartY;
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+
+                    // Rotate the camera
+                    camera.rotation.y -= deltaX * 0.002;
+                    camera.rotation.x -= deltaY * 0.002;
+                    camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x)); // Limit the pitch (up-down rotation)
+                });
+                document.addEventListener('touchend', () => {
+                    isTouching = false;
+                });
+            }
+
             const clock = new THREE.Clock();
+
             function animate() {
+                let shiftCoefficient;
                 const delta = clock.getDelta();
 
-                // Update velocity based on movement
-                velocity.set(0, 0, 0);
-                if (move.forward) velocity.z += 1000 * delta;
-                if (move.backward) velocity.z -= 1000 * delta;
-                if (move.left) velocity.x -= 1000 * delta;
-                if (move.right) velocity.x += 1000 * delta;
+                if (move.shift) {
+                    camera.position.y = 1.00;
+                    shiftCoefficient = 0.5;
+                }
+                else {
+                    camera.position.y = 1.65;
+                    shiftCoefficient = 1;
+                }
 
-                // Apply velocity
+                velocity.set(0, 0, 0);
+                if (move.forward) velocity.z += 1000 * delta * shiftCoefficient;
+                if (move.backward) velocity.z -= 1000 * delta * shiftCoefficient;
+                if (move.left) velocity.x -= 1000 * delta * shiftCoefficient;
+                if (move.right) velocity.x += 1000 * delta * shiftCoefficient;
+
                 controls.moveRight(velocity.x * delta);
                 controls.moveForward(velocity.z * delta);
 
-                // Constrain movement to a radius of 9.5 units
                 const position = controls.getObject().position;
                 position.x = Math.max(-9.5, Math.min(9.5, position.x));
                 position.z = Math.max(-9.5, Math.min(9.5, position.z));
@@ -139,8 +199,10 @@
                 renderer.render(scene, camera);
                 requestAnimationFrame(animate);
             }
+
             animate();
         }
     </script>
 </body>
+
 </html>
